@@ -1,0 +1,128 @@
+---
+- name: Montar pagina con ansible
+  become: yes
+  gather_facts: false
+  hosts: all
+  tasks:
+    - name: Crear carpeta del sitio web
+      file:
+        path: /var/www/miguelmorua.com
+        state: directory
+
+    - name: Copiar la página a la carpeta creada
+      copy:
+        src: /home/miguel/Descargas/Curriculum/Curriculum/
+        dest: /var/www/html
+        owner: www-data
+        group: www-data
+        mode: 0750
+
+    - name: "Crear archivo de configuracion"
+      file:
+        path: /etc/apache2/sites-available/miguelmorua.com.conf
+        state: touch
+        mode: 0750
+
+    - name: Escribir configuracion en el archivo
+      copy:
+        dest: /etc/apache2/sites-available/miguelmorua.com.conf
+        content: |
+          <VirtualHost *:80>
+           ServerName miguelmorua.ejemplo.com
+           ServerAlias www.mmorua.com
+           DocumentRoot /var/www/miguelmorua.com
+           ErrorLog ${APACHE_LOG_DIR}/error.log
+           CustomLog ${APACHE_LOG_DIR}/access.log combined
+          </VirtualHost>
+
+    - name: Activar el archivo de configuracion
+      shell: a2ensite miguelmorua.com.conf
+
+    - name: Instalar PyMySQL
+      pip:
+        name: pymysql
+
+    - name: Instalar mysqlclient
+      pip:
+        name: mysqlclient
+
+    - name: Instalar MySQL-server, pip y PHPMySQL
+      apt:
+        name: "mysql-server, pip, php-mysqli"
+
+    - name: Iniciar servicios de mysql
+      shell: systemctl start mysql
+
+    - name: Instalar modulo libapache2
+      apt:
+        name: libapache2-mod-php
+
+    - name: Ejecutar el archivo login.sql
+      ignore_errors: yes
+      mysql_db:
+        name: login
+        state: import
+        target: /home/miguel/Descargas/login.sql
+        login_user: "mike"
+        login_password: "1"
+
+    - name: Crear carpeta del sitio web
+      file:
+        path: /var/www/www.mmorua.com
+        state: directory
+
+    - name: Copiar la página a la carpeta creada
+      copy:
+        src: /home/miguel/Descargas/login_registro/
+        dest: /var/www/www.mmorua.com
+        owner: www-data
+        group: www-data
+        mode: 0750
+
+    - name: "Crear archivo de configuracion"
+      file:
+        path: /etc/apache2/sites-available/www.mmorua.com.conf
+        state: touch
+        mode: 0750
+
+    - name: Escribir configuracion en el archivo
+      copy:
+        dest: /etc/apache2/sites-available/www.mmorua.com.conf
+        content: |
+          <VirtualHost *:80>
+           ServerName www.mmorua.com
+           ServerAlias app.mmorua.com
+           DocumentRoot /var/www/www.mmorua.com
+           ErrorLog ${APACHE_LOG_DIR}/error.log
+           CustomLog ${APACHE_LOG_DIR}/access.log combined
+          </VirtualHost>
+
+    - name: Activar el archivo de configuracion
+      shell: a2ensite www.mmorua.com.conf
+
+    - name: Permitir el trafico HTP en el puerto
+      iptables:
+        chain: INPUT
+        protocol: tcp
+        destination_port: 80
+        jump: ACCEPT
+
+    - name: Eliminar cuentas de usuarios anonimas
+      mysql_db:
+        login_user: 'mike'
+        login_password: '1'
+        login_host: localhost
+        name: ""
+        state: absent
+      become: true
+      become_user: root
+
+    - name: Eliminar base de de pruebas
+      mysql_db:
+        login_user: 'mike'
+        login_password: '1'
+        login_host: localhost
+        name: test
+        state: absent
+      become: true
+      become_user: root
